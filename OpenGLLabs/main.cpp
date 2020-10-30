@@ -2,6 +2,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <iostream>
 #include <fstream>
+#include <thread>
 #include <functional>
 #include <ctime>
 #include <vector>
@@ -58,6 +59,7 @@ private:
 		return program;
 	}
 public:
+	Shader() :_id(0) {}
 	Shader(const std::string& vertex_shader_path, const std::string& fragment_shader_path) {
 		std::ifstream vs(vertex_shader_path);
 		std::ifstream fs(fragment_shader_path);
@@ -80,9 +82,39 @@ public:
 	auto select() -> void {
 		glUseProgram(_id);
 	}
-	auto transform(std::function<void(int)> func) -> void {
-		select();
-		func(_id);
+	explicit operator unsigned int() {
+		return _id;
+	}
+};
+
+class Texture final {
+private:
+	unsigned int _id;
+public:
+	Texture() :_id(0) {}
+	Texture(const std::string& path_to_texture) {
+		glActiveTexture(GL_TEXTURE0);
+		glGenTextures(1, &_id);
+		glBindTexture(GL_TEXTURE_2D, _id);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		int width, height, channels;
+
+		unsigned char* data = stbi_load(path_to_texture.c_str(), &width, &height, &channels, 0);
+		if (!data) {
+			stbi_image_free(data);
+			throw std::runtime_error("Didn't manage to lead texture.");
+		}
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		stbi_image_free(data);
+	}
+	auto select() {
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, _id);
 	}
 	explicit operator unsigned int() {
 		return _id;
@@ -94,11 +126,12 @@ private:
 	unsigned int _VBO;
 	unsigned int _VAO;
 	unsigned int _dim;
+	unsigned int _tex_dim;
 	Shader _shader;
+	Texture _texture;
 	std::vector<float> _data;
 public:
-	Renderer(const std::vector<float>& data, unsigned int tex_dim, size_t dim, const Shader& shader) : _dim(dim), _data(data), _shader(shader) {
-
+	Renderer(const std::vector<float>& data, unsigned int tex_dim, unsigned int dim, const Shader& shader, const Texture& texture) : _dim(dim), _data(data), _shader(shader), _tex_dim(tex_dim), _texture(texture) {
 		glGenVertexArrays(1, &_VAO);
 		glGenBuffers(1, &_VBO);
 		glBindVertexArray(_VAO);
@@ -106,13 +139,23 @@ public:
 		glBindBuffer(GL_ARRAY_BUFFER, _VBO);
 		glBufferData(GL_ARRAY_BUFFER, _data.size() * sizeof(float), _data.data(), GL_STATIC_DRAW);
 
-		auto stride = (tex_dim + dim) * sizeof(float);
+		auto stride = (_tex_dim + _dim) * sizeof(float);
 
-		glVertexAttribPointer(0, _dim, GL_FLOAT, GL_FALSE, stride, (void*)0);
+		glVertexAttribPointer(0, _dim, GL_FLOAT, false, stride, (void*)0);
 		glEnableVertexAttribArray(0);
-		// color attribute
-		glVertexAttribPointer(1, tex_dim, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+
+		glVertexAttribPointer(1, _tex_dim, GL_FLOAT, false, stride, (void*)(3 * sizeof(float)));
 		glEnableVertexAttribArray(1);
+	}
+
+	template<class Fn, class... Args>
+	auto render(const Fn& func, Args... args) -> void {
+		glActiveTexture(GL_TEXTURE0);
+		_texture.select();
+		_shader.select();
+		func((unsigned int)_shader, args...);
+		glBindVertexArray(_VAO);
+		glDrawArrays(GL_TRIANGLES, 0, _data.size() / (_dim + _tex_dim));
 	}
 };
 
@@ -160,9 +203,9 @@ static std::vector<float> vertices{
 	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
-const char* get_random_colored_4am_cube() {
+const char* get_random_colored_4am_cube(int var = -1) {
 	srand(time(NULL));
-	unsigned int random = rand() % 26;
+	unsigned int random = var == -1? rand() % 26 : (unsigned int)var;
 	switch (random){
 	case 0: case 1: 
 		return "../OpenGLLabs/frame_yellow.jpg";
@@ -201,83 +244,37 @@ auto main() -> int {
 	}
 	std::cout << glGetString(GL_VERSION) << std::endl;
 	try {
-		Shader shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
+		auto shader = Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
+		Renderer renderer(vertices, 2, 3, shader, Texture(get_random_colored_4am_cube(0)));
+		//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		Renderer renderer2(vertices, 2, 3, shader, Texture(get_random_colored_4am_cube(2)));
+		Renderer renderer3(vertices, 2, 3, shader, Texture(get_random_colored_4am_cube(8)));
 
-	unsigned int VBO, VAO;
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glBindVertexArray(VAO);
+		auto func = [](unsigned int shader, glm::vec3 coords) -> void {
+			glm::mat4 model = glm::mat4(1.0f);
+			glm::mat4 view = glm::mat4(1.0f);
+			glm::mat4 projection = glm::mat4(1.0f);
+			model = glm::rotate(model, (float)glfwGetTime() * glm::radians(66.6f), glm::vec3(4.04f, 4.2f, 1.3f));
+			view = glm::translate(view, coords);
+			projection = glm::perspective(glm::radians(56.6f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+			unsigned int modelLoc = glGetUniformLocation(shader, "model");
+			unsigned int viewLoc = glGetUniformLocation(shader, "view");
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+			glUniformMatrix4fv(viewLoc, 1, GL_FALSE, &view[0][0]);
+			glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, &projection[0][0]);
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+		};
 
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), &vertices[0], GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	// color attribute
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-	// texture coord attribute
-	/*glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(6 * sizeof(float)));
-	glEnableVertexAttribArray(2);*/
-
-
-
-	unsigned int texture;
-	glActiveTexture(GL_TEXTURE0);
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	int width, height, channels;
-
-	unsigned char* data = stbi_load(get_random_colored_4am_cube(), &width, &height, &channels, 0);
-	if (data) {
-		std::cout << width << ' ' << height << std::endl;
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else {
-		std::cerr << "Failed to load texture." << std::endl;
-	}
-	stbi_image_free(data);
-
-
-	while (!glfwWindowShouldClose(window)) {
-		glfwMakeContextCurrent(window);
-		glEnable(GL_DEPTH_TEST);
-		//glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glUseProgram((unsigned int)shader);
-		
-
-		glm::mat4 trans = glm::mat4(1.0f);
-		/*trans = glm::rotate(trans, (float)glfwGetTime(), glm::vec3(1.0f, 1.0f, 0.0f));
-		unsigned int transformLoc = glGetUniformLocation(shader, "transform");
-		glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));*/
-
-		glm::mat4 model = glm::mat4(1.0f);
-		glm::mat4 view = glm::mat4(1.0f);
-		glm::mat4 projection = glm::mat4(1.0f);
-		model = glm::rotate(model, (float)glfwGetTime() * glm::radians(66.6f), glm::vec3(4.04f, 4.2f, 1.3f));
-		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
-		projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-		unsigned int modelLoc = glGetUniformLocation((unsigned int)shader, "model");
-		unsigned int viewLoc = glGetUniformLocation((unsigned int)shader, "view");
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, &view[0][0]);
-		glUniformMatrix4fv(glGetUniformLocation((unsigned int)shader, "projection"), 1, GL_FALSE, &projection[0][0]);
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-		glBindVertexArray(VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glfwSwapBuffers(window);
-		glfwPollEvents();
-	}
+		while (!glfwWindowShouldClose(window)) {
+			glfwMakeContextCurrent(window);
+			glEnable(GL_DEPTH_TEST);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			renderer.render(func, glm::vec3(2.2f, -1.5f, -7.0f));
+			renderer2.render(func, glm::vec3(-2.2f, -1.5f, -7.0f));
+			renderer3.render(func, glm::vec3(0.0f, 1.5f, -7.0f));
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+		}
 	}
 	catch (const std::exception& ex) {
 		std::cerr << ex.what() << std::endl;
