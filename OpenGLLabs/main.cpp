@@ -12,152 +12,12 @@
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
-#include "stb_image.h"
 
-
+#include "Shader.hpp"
+#include "Texture.hpp"
+#include "Renderer.hpp"
 #define WIDTH 1000
 #define HEIGHT 1000
-
-class Shader final {
-private:
-	unsigned int _id;
-	auto compile_shader(unsigned int type, const std::string& source) -> unsigned int {
-		unsigned int id = glCreateShader(type);
-		const char* src = source.c_str();
-		int result;
-		glShaderSource(id, 1, &src, nullptr);
-		glCompileShader(id);
-
-		glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-		if (result == GL_FALSE) {
-			int length;
-			glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-			char* message = (char*)_malloca(length * sizeof(char));
-			glGetShaderInfoLog(id, length, &length, message);
-			throw std::runtime_error((std::string)"Failed to compile "
-				+ (type == GL_VERTEX_SHADER ? "vertex" : "fragment")
-				+ " shader!\n"
-				+ (std::string)message);
-		}
-
-		return id;
-	}
-
-	auto create_shader(const std::string& vertex_shader, const std::string& fragment_shader) -> unsigned int {
-		unsigned int program =	glCreateProgram();
-		unsigned int vs =		compile_shader(GL_VERTEX_SHADER, vertex_shader);
-		unsigned int fs =		compile_shader(GL_FRAGMENT_SHADER, fragment_shader);
-
-		glAttachShader(program, vs);
-		glAttachShader(program, fs);
-		glLinkProgram(program);
-		glValidateProgram(program);
-
-		glDeleteShader(vs);
-		glDeleteShader(fs);
-
-		return program;
-	}
-public:
-	Shader() :_id(0) {}
-	Shader(const std::string& vertex_shader_path, const std::string& fragment_shader_path) {
-		std::ifstream vs(vertex_shader_path);
-		std::ifstream fs(fragment_shader_path);
-		if (!vs.is_open() || !fs.is_open()) {
-			throw std::runtime_error("Didn't manage to find shader.");
-		}
-		else {
-			std::string buff, vertex = "", fragment = "";
-			while (std::getline(vs, buff)) {
-				vertex += buff + '\n';
-			} while (std::getline(fs, buff)) {
-				fragment += buff + '\n';
-			}
-			this->_id = create_shader(vertex, fragment);
-		}
-	}
-	auto get_id() -> unsigned int {
-		return _id;
-	}
-	auto select() -> void {
-		glUseProgram(_id);
-	}
-	explicit operator unsigned int() {
-		return _id;
-	}
-};
-
-class Texture final {
-private:
-	unsigned int _id;
-public:
-	Texture() :_id(0) {}
-	Texture(const std::string& path_to_texture) {
-		glActiveTexture(GL_TEXTURE0);
-		glGenTextures(1, &_id);
-		glBindTexture(GL_TEXTURE_2D, _id);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		int width, height, channels;
-
-		unsigned char* data = stbi_load(path_to_texture.c_str(), &width, &height, &channels, 0);
-		if (!data) {
-			stbi_image_free(data);
-			throw std::runtime_error("Didn't manage to lead texture.");
-		}
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-		stbi_image_free(data);
-	}
-	auto select() {
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, _id);
-	}
-	explicit operator unsigned int() {
-		return _id;
-	}
-};
-
-class Renderer final {
-private:
-	unsigned int _VBO;
-	unsigned int _VAO;
-	unsigned int _dim;
-	unsigned int _tex_dim;
-	Shader _shader;
-	Texture _texture;
-	std::vector<float> _data;
-public:
-	Renderer(const std::vector<float>& data, unsigned int tex_dim, unsigned int dim, const Shader& shader, const Texture& texture) : _dim(dim), _data(data), _shader(shader), _tex_dim(tex_dim), _texture(texture) {
-		glGenVertexArrays(1, &_VAO);
-		glGenBuffers(1, &_VBO);
-		glBindVertexArray(_VAO);
-
-		glBindBuffer(GL_ARRAY_BUFFER, _VBO);
-		glBufferData(GL_ARRAY_BUFFER, _data.size() * sizeof(float), _data.data(), GL_STATIC_DRAW);
-
-		auto stride = (_tex_dim + _dim) * sizeof(float);
-
-		glVertexAttribPointer(0, _dim, GL_FLOAT, false, stride, (void*)0);
-		glEnableVertexAttribArray(0);
-
-		glVertexAttribPointer(1, _tex_dim, GL_FLOAT, false, stride, (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(1);
-	}
-
-	template<class Fn, class... Args>
-	auto render(const Fn& func, Args... args) -> void {
-		glActiveTexture(GL_TEXTURE0);
-		_texture.select();
-		_shader.select();
-		func((unsigned int)_shader, args...);
-		glBindVertexArray(_VAO);
-		glDrawArrays(GL_TRIANGLES, 0, _data.size() / (_dim + _tex_dim));
-	}
-};
 
 static std::vector<float> vertices{
 	-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
@@ -204,7 +64,7 @@ static std::vector<float> vertices{
 };
 
 const char* get_random_colored_4am_cube(int var = -1) {
-	srand(time(NULL));
+	
 	unsigned int random = var == -1? rand() % 26 : (unsigned int)var;
 	switch (random){
 	case 0: case 1: 
@@ -222,33 +82,34 @@ const char* get_random_colored_4am_cube(int var = -1) {
 	case 23: case 24:
 		return "../OpenGLLabs/frame_white.jpg";
 	default:
-		return "../OpenGLLabs/frame_black.jpg"; //-Moge-ge-ge-ge-//
+		return "../OpenGLLabs/frame_black.jpg";
 	}
 }
 
 auto main() -> int {
-
+	srand(time(NULL));
 	if (!glfwInit())
 		return -1;
-	/*glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);*/
-	auto window = glfwCreateWindow(WIDTH, HEIGHT, "4AM CUBE", NULL, NULL);
+
+	auto window = glfwCreateWindow(WIDTH, HEIGHT, "4am CUBES", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
 		return -1;
 	}
+
 	glfwMakeContextCurrent(window);
 	if (glewInit() != GLEW_OK) {
 		std::cout << "Didn't manage to initialize GLEW." << std::endl;;
 		return -1;
 	}
+
 	std::cout << glGetString(GL_VERSION) << std::endl;
 	try {
 		auto shader = Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
-		Renderer renderer(vertices, 2, 3, shader, Texture(get_random_colored_4am_cube(0)));
-		//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-		Renderer renderer2(vertices, 2, 3, shader, Texture(get_random_colored_4am_cube(2)));
-		Renderer renderer3(vertices, 2, 3, shader, Texture(get_random_colored_4am_cube(8)));
+		auto texture1 = Texture(get_random_colored_4am_cube());
+		auto texture2 = Texture(get_random_colored_4am_cube());
+		auto texture3 = Texture(get_random_colored_4am_cube());
+		Renderer renderer(&vertices, 2, 3, &shader, &texture1);
 
 		auto func = [](unsigned int shader, glm::vec3 coords) -> void {
 			glm::mat4 model = glm::mat4(1.0f);
@@ -269,9 +130,14 @@ auto main() -> int {
 			glfwMakeContextCurrent(window);
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			//renderer.render(func, glm::vec3(0,0,-3));
+			renderer.change_texture(&texture1);
 			renderer.render(func, glm::vec3(2.2f, -1.5f, -7.0f));
-			renderer2.render(func, glm::vec3(-2.2f, -1.5f, -7.0f));
-			renderer3.render(func, glm::vec3(0.0f, 1.5f, -7.0f));
+			renderer.change_texture(&texture2);
+			renderer.render(func, glm::vec3(-2.2f, -1.5f, -7.0f));
+			renderer.change_texture(&texture3);
+			renderer.render(func, glm::vec3(0.0f, 1.5f, -7.0f));
+
 			glfwSwapBuffers(window);
 			glfwPollEvents();
 		}
