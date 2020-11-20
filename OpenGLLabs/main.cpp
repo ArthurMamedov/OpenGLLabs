@@ -16,6 +16,8 @@
 #include "Shader.hpp"
 #include "Texture.hpp"
 #include "Renderer.hpp"
+#include "Camera.hpp"
+
 #define WIDTH 1000
 #define HEIGHT 1000
 
@@ -104,39 +106,82 @@ auto main() -> int {
 	}
 
 	std::cout << glGetString(GL_VERSION) << std::endl;
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	try {
-		auto shader = Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
-		auto texture1 = Texture(get_random_colored_4am_cube());
-		auto texture2 = Texture(get_random_colored_4am_cube());
-		auto texture3 = Texture(get_random_colored_4am_cube());
-		Renderer renderer(&vertices, 2, 3, &shader, &texture1);
+		auto shader   = Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
+		auto camera	  = Camera();
+		auto texture1 = Texture(get_random_colored_4am_cube(1));
+		auto texture2 = Texture(get_random_colored_4am_cube(3));
+		auto texture3 = Texture(get_random_colored_4am_cube(7));
+		auto texture4 = Texture(get_random_colored_4am_cube(13));
+		auto texture5 = Texture(get_random_colored_4am_cube(18));
+		auto texture6 = Texture(get_random_colored_4am_cube(21));
+		auto texture7 = Texture(get_random_colored_4am_cube(23));
 
-		auto func = [](unsigned int shader, glm::vec3 coords) -> void {
+		Renderer renderer(&vertices, 2, 3, &shader, &texture1);
+		camera.set_speed(10);
+		auto func = [&](unsigned int shader, glm::vec3 coords) -> void {
 			glm::mat4 model = glm::mat4(1.0f);
 			glm::mat4 view = glm::mat4(1.0f);
 			glm::mat4 projection = glm::mat4(1.0f);
 			model = glm::rotate(model, (float)glfwGetTime() * glm::radians(66.6f), glm::vec3(4.04f, 4.2f, 1.3f));
-			view = glm::translate(view, coords);
-			projection = glm::perspective(glm::radians(56.6f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-			unsigned int modelLoc = glGetUniformLocation(shader, "model");
-			unsigned int viewLoc = glGetUniformLocation(shader, "view");
-			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-			glUniformMatrix4fv(viewLoc, 1, GL_FALSE, &view[0][0]);
+			view = glm::translate((glm::mat4)camera, coords);
+			projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+			glUniform1f(glGetUniformLocation(shader, "time"), glfwGetTime());
+			glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+			glUniformMatrix4fv(glGetUniformLocation(shader, "view"), 1, GL_FALSE, &view[0][0]);
 			glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, &projection[0][0]);
-			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		};
 
+		float deltaTime = 0.0f;	// Time between current frame and last frame
+		float lastFrame = 0.0f;
+		double x = 0, y = 0;
+		glfwSetCursorPos(window, 0.0, 0.0);
+		bool cam = true;
 		while (!glfwWindowShouldClose(window)) {
+			float currentFrame = glfwGetTime();
+			deltaTime = currentFrame - lastFrame;
+			lastFrame = currentFrame;
 			glfwMakeContextCurrent(window);
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			//renderer.render(func, glm::vec3(0,0,-3));
+			if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
+				cam = !cam;
+			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && cam)
+				camera.move_forward(deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && cam)
+				camera.move_backwards(deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && cam)
+				camera.move_left(deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && cam)
+				camera.move_right(deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && cam)
+				camera.move_up(deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && cam)
+				camera.move_down(deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+				break;
+
+			double sx = x, sy = y;
+			glfwGetCursorPos(window, &x, &y);
+			if (cam) {
+				camera.rotate(x - sx, sy - y);
+			}
+
+			renderer.change_texture(&texture7);
+			renderer.render(func, glm::vec3(7.0f, 0.0f, 0.0f));
 			renderer.change_texture(&texture1);
-			renderer.render(func, glm::vec3(2.2f, -1.5f, -7.0f));
+			renderer.render(func, glm::vec3(4.5f, 0.0f, 5.5f));
 			renderer.change_texture(&texture2);
-			renderer.render(func, glm::vec3(-2.2f, -1.5f, -7.0f));
+			renderer.render(func, glm::vec3(-1.0f, 0.0f, 7.0f));
 			renderer.change_texture(&texture3);
-			renderer.render(func, glm::vec3(0.0f, 1.5f, -7.0f));
+			renderer.render(func, glm::vec3(-6.5f, 0.0f, 3.0f));
+			renderer.change_texture(&texture4);
+			renderer.render(func, glm::vec3(-6.5f, 0.0f, -3.0f));
+			renderer.change_texture(&texture5);
+			renderer.render(func, glm::vec3(4.5f, 0.0f, -5.5f));
+			renderer.change_texture(&texture6);
+			renderer.render(func, glm::vec3(-1.0f, 0.0f, -7.0f));
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();

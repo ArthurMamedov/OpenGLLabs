@@ -11,7 +11,7 @@ auto Shader::compile_shader(unsigned int type, const std::string& source) -> uns
 	if (result == GL_FALSE) {
 		int length;
 		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-		char* message = (char*)_malloca(length * sizeof(char));
+		char* message = (char*)alloca(length * sizeof(char));
 		glGetShaderInfoLog(id, length, &length, message);
 		throw std::runtime_error((std::string)"Failed to compile "
 			+ (type == GL_VERTEX_SHADER ? "vertex" : "fragment")
