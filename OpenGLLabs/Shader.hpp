@@ -17,4 +17,3 @@ public:
 	auto select() const -> void;
 	explicit operator unsigned int() const;
 };
-

@@ -11,7 +11,7 @@ uniform float time;
 
 void main()
 {
-	float t = 1.5f + sin(time) / 1.5f;
+	float t = 1.5f + cos(time) / 1.5;
 	gl_Position = projection * view * model * vec4(aPos, 1 / t);
 	TexCoord = vec2(aTexCoord.x, aTexCoord.y);
 }

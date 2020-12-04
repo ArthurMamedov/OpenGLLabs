@@ -5,15 +5,15 @@ auto Shader::compile_shader(unsigned int type, const std::string& source) -> uns
 	const char* src = source.c_str();
 	int result;
 	glShaderSource(id, 1, &src, nullptr);
-	glCompileShader(id);
+	glCompileShader(id); //компиляция шейдеров
 
-	glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-	if (result == GL_FALSE) {
+	glGetShaderiv(id, GL_COMPILE_STATUS, &result); //Вытаскиваем статус компиляции шейдера - скомпилился или случился писец.
+	if (result == GL_FALSE) { //Если всё пошло лесом
 		int length;
-		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-		char* message = (char*)alloca(length * sizeof(char));
-		glGetShaderInfoLog(id, length, &length, message);
-		throw std::runtime_error((std::string)"Failed to compile "
+		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length); // достаём длину сообщения об обшибке
+		char* message = (char*)alloca(length * sizeof(char)); // выделяем под неё память в стеке
+		glGetShaderInfoLog(id, length, &length, message); //пишем ошибку в выделенную в прошлой строчке память
+		throw std::runtime_error((std::string)"Failed to compile " //выводим (ну, я бросаю исключение...)
 			+ (type == GL_VERTEX_SHADER ? "vertex" : "fragment")
 			+ " shader!\n"
 			+ (std::string)message);

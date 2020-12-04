@@ -17,6 +17,7 @@
 #include "Texture.hpp"
 #include "Renderer.hpp"
 #include "Camera.hpp"
+#include "Window.hpp"
 
 #define WIDTH 1000
 #define HEIGHT 1000
@@ -90,25 +91,18 @@ const char* get_random_colored_4am_cube(int var = -1) {
 
 auto main() -> int {
 	srand(time(NULL));
-	if (!glfwInit())
-		return -1;
-
-	auto window = glfwCreateWindow(WIDTH, HEIGHT, "4am CUBES", NULL, NULL);
-	if (!window) {
-		glfwTerminate();
-		return -1;
-	}
-
-	glfwMakeContextCurrent(window);
-	if (glewInit() != GLEW_OK) {
-		std::cout << "Didn't manage to initialize GLEW." << std::endl;;
+	Engine4AM::Window window;
+	try {
+		window = Engine4AM::Window(WIDTH, HEIGHT, "4am cubes");
+	} catch (const std::exception& ex) {
+		std::cerr << ex.what() << std::endl;
 		return -1;
 	}
-
 	std::cout << glGetString(GL_VERSION) << std::endl;
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	try {
 		auto shader   = Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
+		//auto shader2  = Shader("../OpenGLLabs/vertex_shader2.shader", "../OpenGLLabs/fragment_shader.shader");
 		auto camera	  = Camera();
 		auto texture1 = Texture(get_random_colored_4am_cube(1));
 		auto texture2 = Texture(get_random_colored_4am_cube(3));
@@ -117,14 +111,15 @@ auto main() -> int {
 		auto texture5 = Texture(get_random_colored_4am_cube(18));
 		auto texture6 = Texture(get_random_colored_4am_cube(21));
 		auto texture7 = Texture(get_random_colored_4am_cube(23));
-
 		Renderer renderer(&vertices, 2, 3, &shader, &texture1);
 		camera.set_speed(10);
+		bool rotation = true;
 		auto func = [&](unsigned int shader, glm::vec3 coords) -> void {
 			glm::mat4 model = glm::mat4(1.0f);
 			glm::mat4 view = glm::mat4(1.0f);
 			glm::mat4 projection = glm::mat4(1.0f);
-			model = glm::rotate(model, (float)glfwGetTime() * glm::radians(66.6f), glm::vec3(4.04f, 4.2f, 1.3f));
+			if (rotation)
+				model = glm::rotate(model, (float)glfwGetTime() * glm::radians(66.6f), glm::vec3(0.0f, 0.1f, 0.0f));
 			view = glm::translate((glm::mat4)camera, coords);
 			projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
 			glUniform1f(glGetUniformLocation(shader, "time"), glfwGetTime());
@@ -142,6 +137,7 @@ auto main() -> int {
 			float currentFrame = glfwGetTime();
 			deltaTime = currentFrame - lastFrame;
 			lastFrame = currentFrame;
+			glClearColor(0.2, 0.2, 0.2, 1);
 			glfwMakeContextCurrent(window);
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -169,18 +165,31 @@ auto main() -> int {
 			}
 
 			renderer.change_texture(&texture7);
+			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(7.0f, 0.0f, 0.0f));
+			
 			renderer.change_texture(&texture1);
+			//renderer.change_shader(&shader2);
 			renderer.render(func, glm::vec3(4.5f, 0.0f, 5.5f));
+			
 			renderer.change_texture(&texture2);
+			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(-1.0f, 0.0f, 7.0f));
+			
 			renderer.change_texture(&texture3);
+			//renderer.change_shader(&shader2);
 			renderer.render(func, glm::vec3(-6.5f, 0.0f, 3.0f));
+
 			renderer.change_texture(&texture4);
+			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(-6.5f, 0.0f, -3.0f));
+			
 			renderer.change_texture(&texture5);
+			//renderer.change_shader(&shader2);
 			renderer.render(func, glm::vec3(4.5f, 0.0f, -5.5f));
+			
 			renderer.change_texture(&texture6);
+			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(-1.0f, 0.0f, -7.0f));
 
 			glfwSwapBuffers(window);
