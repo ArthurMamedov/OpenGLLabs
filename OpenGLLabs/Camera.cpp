@@ -1,5 +1,7 @@
 #include "Camera.hpp"
 
+using namespace Engine4AM;
+
 Camera::Camera() {
 	_pos = glm::vec3(0.0f, 0.0f, 0.0f);
 	_front = glm::vec3(0.0f, 0.0f, -1.0f);

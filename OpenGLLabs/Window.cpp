@@ -1,15 +1,16 @@
 #include "Window.hpp"
 #include <stdexcept>
 
+using namespace Engine4AM;
 
-Engine4AM::Window::Window() {
+Window::Window() {
     _width = 0;
     _height = 0;
     _title = "";
     _window = nullptr;
 }
 
-Engine4AM::Window::Window(Window&& window) noexcept {
+Window::Window(Window&& window) noexcept {
     _width = window._width;
     _height = window._height;
     _title = std::move(window._title);
@@ -17,7 +18,7 @@ Engine4AM::Window::Window(Window&& window) noexcept {
     window._window = nullptr;
 }
 
-Engine4AM::Window::Window(unsigned int width, unsigned int height, const std::string& title):
+Window::Window(unsigned int width, unsigned int height, const std::string& title):
     _width(width), _height(height), _title(title) {
     if (!glfwInit()) {
         throw std::runtime_error("Didn't manage to initialize GLFW.");
@@ -32,28 +33,27 @@ Engine4AM::Window::Window(unsigned int width, unsigned int height, const std::st
     }
 }
 
-Engine4AM::Window::~Window() {
-    if(_window)
-       glfwDestroyWindow(_window);
+Window::~Window() {
+    glfwDestroyWindow(_window);
 }
 
-auto Engine4AM::Window::get_width() const noexcept -> unsigned int {
+auto Window::get_width() const noexcept -> unsigned int {
     return _width;
 }
 
-auto Engine4AM::Window::get_height() const noexcept -> unsigned int {
+auto Window::get_height() const noexcept -> unsigned int {
     return _height;
 }
 
-auto Engine4AM::Window::get_title() const -> std::string {
+auto Window::get_title() const -> std::string {
     return _title;
 }
 
-auto Engine4AM::Window::make_window_current() const noexcept -> void {
+auto Window::make_window_current() const noexcept -> void {
     glfwMakeContextCurrent(_window);
 }
 
-Engine4AM::Window& Engine4AM::Window::operator=(Window&& window) noexcept {
+Window& Window::operator=(Window&& window) noexcept {
     _width = window._width;
     _height = window._height;
     _title = std::move(window._title);
@@ -62,6 +62,6 @@ Engine4AM::Window& Engine4AM::Window::operator=(Window&& window) noexcept {
     return *this;
 }
 
-Engine4AM::Window::operator GLFWwindow* () noexcept {
+Window::operator GLFWwindow* () noexcept {
     return _window;
 }

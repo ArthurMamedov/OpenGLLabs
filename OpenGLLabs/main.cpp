@@ -1,12 +1,8 @@
 #define GLEW_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include <iostream>
-#include <fstream>
-#include <thread>
-#include <functional>
 #include <ctime>
 #include <vector>
-#include <string>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm.hpp>
@@ -18,6 +14,7 @@
 #include "Renderer.hpp"
 #include "Camera.hpp"
 #include "Window.hpp"
+#include "GObject.hpp"
 
 #define WIDTH 1000
 #define HEIGHT 1000
@@ -66,7 +63,7 @@ static std::vector<float> vertices{
 	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
-const char* get_random_colored_4am_cube(int var = -1) {
+auto get_random_colored_4am_cube(int var = -1) -> const char* {
 	
 	unsigned int random = var == -1? rand() % 26 : (unsigned int)var;
 	switch (random){
@@ -89,30 +86,32 @@ const char* get_random_colored_4am_cube(int var = -1) {
 	}
 }
 
+auto print_info() {
+	std::cout
+		<< "OpenGL lab: by Arthur Mamedov (4AM inc.)" << std::endl << std::endl
+		<< "OpenGL version: " << glGetString(GL_VERSION) << std::endl << std::endl
+		<< "7 cubes are rendered and drawn using shaders (vertex and fragment)." << std::endl
+		<< "All these cubes are actually only one cube, rendered 7 times" << std::endl
+		<< "\twith 7 different textures, but with the same shaders and vertices." << std::endl
+		<< "Rotation is calculated on CPU, but size changing - on GPU." << std::endl << std::endl
+		<< "To use camera, use keys 'W', 'A', 'S', 'D', SHIFT and SPACE, to close the window, press ESC or 'Q'" << std::endl;
+}
+
 auto main() -> int {
-	srand(time(NULL));
-	Engine4AM::Window window;
+	srand(static_cast<unsigned int>(time(NULL)));
 	try {
-		window = Engine4AM::Window(WIDTH, HEIGHT, "4am cubes");
-	} catch (const std::exception& ex) {
-		std::cerr << ex.what() << std::endl;
-		return -1;
-	}
-	std::cout << glGetString(GL_VERSION) << std::endl;
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	try {
-		auto shader   = Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
-		//auto shader2  = Shader("../OpenGLLabs/vertex_shader2.shader", "../OpenGLLabs/fragment_shader.shader");
-		auto camera	  = Camera();
-		auto texture1 = Texture(get_random_colored_4am_cube(1));
-		auto texture2 = Texture(get_random_colored_4am_cube(3));
-		auto texture3 = Texture(get_random_colored_4am_cube(7));
-		auto texture4 = Texture(get_random_colored_4am_cube(13));
-		auto texture5 = Texture(get_random_colored_4am_cube(18));
-		auto texture6 = Texture(get_random_colored_4am_cube(21));
-		auto texture7 = Texture(get_random_colored_4am_cube(23));
-		Renderer renderer(&vertices, 2, 3, &shader, &texture1);
-		camera.set_speed(10);
+		auto window   = Engine4AM::Window(WIDTH, HEIGHT, "4am cubes");
+		auto shader   = Engine4AM::Shader("../OpenGLLabs/vertex_shader.shader", "../OpenGLLabs/fragment_shader.shader");
+		auto camera	  = Engine4AM::Camera(); camera.set_speed(10);
+		auto texture1 = Engine4AM::Texture(get_random_colored_4am_cube(1));
+		auto texture2 = Engine4AM::Texture(get_random_colored_4am_cube(3));
+		auto texture3 = Engine4AM::Texture(get_random_colored_4am_cube(7));
+		auto texture4 = Engine4AM::Texture(get_random_colored_4am_cube(13));
+		auto texture5 = Engine4AM::Texture(get_random_colored_4am_cube(18));
+		auto texture6 = Engine4AM::Texture(get_random_colored_4am_cube(21));
+		auto texture7 = Engine4AM::Texture(get_random_colored_4am_cube(23));
+		auto cube	  =	Engine4AM::GObject(3, 2, &vertices);
+		auto renderer = Engine4AM::Renderer (&cube, &shader, &texture1);
 		bool rotation = true;
 		auto func = [&](unsigned int shader, glm::vec3 coords) -> void {
 			glm::mat4 model = glm::mat4(1.0f);
@@ -122,7 +121,7 @@ auto main() -> int {
 				model = glm::rotate(model, (float)glfwGetTime() * glm::radians(66.6f), glm::vec3(0.0f, 0.1f, 0.0f));
 			view = glm::translate((glm::mat4)camera, coords);
 			projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-			glUniform1f(glGetUniformLocation(shader, "time"), glfwGetTime());
+			glUniform1f(glGetUniformLocation(shader, "time"), static_cast<float>(glfwGetTime()));
 			glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 			glUniformMatrix4fv(glGetUniformLocation(shader, "view"), 1, GL_FALSE, &view[0][0]);
 			glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, &projection[0][0]);
@@ -131,298 +130,64 @@ auto main() -> int {
 		float deltaTime = 0.0f;	// Time between current frame and last frame
 		float lastFrame = 0.0f;
 		double x = 0, y = 0;
+		print_info();
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		glfwSetCursorPos(window, 0.0, 0.0);
-		bool cam = true;
 		while (!glfwWindowShouldClose(window)) {
-			float currentFrame = glfwGetTime();
+			float currentFrame = static_cast<float>(glfwGetTime());
 			deltaTime = currentFrame - lastFrame;
 			lastFrame = currentFrame;
-			glClearColor(0.2, 0.2, 0.2, 1);
+			glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 			glfwMakeContextCurrent(window);
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
-				cam = !cam;
-			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && cam)
+			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 				camera.move_forward(deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && cam)
+			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
 				camera.move_backwards(deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && cam)
+			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 				camera.move_left(deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && cam)
+			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 				camera.move_right(deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && cam)
+			if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
 				camera.move_up(deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && cam)
+			if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
 				camera.move_down(deltaTime);
 			if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
 				break;
 
-			double sx = x, sy = y;
+			float sx = static_cast<float>(x), sy = static_cast<float>(y);
 			glfwGetCursorPos(window, &x, &y);
-			if (cam) {
-				camera.rotate(x - sx, sy - y);
-			}
+
+			camera.rotate(static_cast<float>(x - sx), static_cast<float>(sy - y));
 
 			renderer.change_texture(&texture7);
-			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(7.0f, 0.0f, 0.0f));
 			
 			renderer.change_texture(&texture1);
-			//renderer.change_shader(&shader2);
 			renderer.render(func, glm::vec3(4.5f, 0.0f, 5.5f));
 			
 			renderer.change_texture(&texture2);
-			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(-1.0f, 0.0f, 7.0f));
 			
 			renderer.change_texture(&texture3);
-			//renderer.change_shader(&shader2);
 			renderer.render(func, glm::vec3(-6.5f, 0.0f, 3.0f));
 
 			renderer.change_texture(&texture4);
-			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(-6.5f, 0.0f, -3.0f));
 			
 			renderer.change_texture(&texture5);
-			//renderer.change_shader(&shader2);
 			renderer.render(func, glm::vec3(4.5f, 0.0f, -5.5f));
 			
 			renderer.change_texture(&texture6);
-			//renderer.change_shader(&shader);
 			renderer.render(func, glm::vec3(-1.0f, 0.0f, -7.0f));
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
 		}
-	}
-	catch (const std::exception& ex) {
-		std::cerr << ex.what() << std::endl;
+	} catch (const std::exception& ex) {
+		std::cerr << "Error: " << ex.what() << std::endl;
 	}
 	glfwTerminate();
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//#define GLEW_STATIC
-//#define STB_IMAGE_IMPLEMENTATION
-//#include <iostream>
-//#include <vector>
-//#include <string>
-//#include <fstream>
-//#include <GL/glew.h>
-//#include <GLFW/glfw3.h>
-//#include <glm.hpp>
-//#include <gtc/matrix_transform.hpp>
-//#include <gtc/type_ptr.hpp>
-//#include "stb_image.h"
-//
-//class Renderer {
-//private:
-//    unsigned int _buff_index;
-//    unsigned int _dim;
-//    std::vector<float> _data;
-//
-//public:
-//    Renderer(std::vector<float>&& data, size_t dim, unsigned int shaders) : _dim(dim), _data(std::move(data)) {
-//        glGenBuffers(1, &_buff_index);
-//        glBindBuffer(GL_ARRAY_BUFFER, _buff_index);
-//        glBufferData(GL_ARRAY_BUFFER, _data.size() * sizeof(float), &_data[0], GL_STATIC_DRAW);
-//        glVertexAttribPointer(0, _dim, GL_FLOAT, false, _dim * sizeof(float), 0);
-//        glEnableVertexAttribArray(0);
-//        glUseProgram(shaders);
-//
-//
-//    }
-//
-//    auto render() -> void {
-//        glClear(GL_COLOR_BUFFER_BIT);
-//        glBindBuffer(GL_ARRAY_BUFFER, _buff_index);
-//        auto count = static_cast<size_t>(_data.size() / _dim);
-//        glDrawArrays(GL_TRIANGLES, 0, count);
-//        glDrawElements(GL_TRIANGLES, count, GL_FLOAT, &_data[0]);
-//    }
-//};
-//
-//static std::vector<float> verticies{
-//    -0.5f, -0.5f, -0.5f,
-//     0.5f, -0.5f, -0.5f,
-//     0.5f,  0.5f, -0.5f,
-//     0.5f,  0.5f, -0.5f,
-//    -0.5f,  0.5f, -0.5f,
-//    -0.5f, -0.5f, -0.5f,
-//    -0.5f, -0.5f,  0.5f,
-//     0.5f, -0.5f,  0.5f,
-//     0.5f,  0.5f,  0.5f,
-//     0.5f,  0.5f,  0.5f,
-//    -0.5f,  0.5f,  0.5f,
-//    -0.5f, -0.5f,  0.5f,
-//    -0.5f,  0.5f,  0.5f,
-//    -0.5f,  0.5f, -0.5f,
-//    -0.5f, -0.5f, -0.5f,
-//    -0.5f, -0.5f, -0.5f,
-//    -0.5f, -0.5f,  0.5f,
-//    -0.5f,  0.5f,  0.5f,
-//     0.5f,  0.5f,  0.5f,
-//     0.5f,  0.5f, -0.5f,
-//     0.5f, -0.5f, -0.5f,
-//     0.5f, -0.5f, -0.5f,
-//     0.5f, -0.5f,  0.5f,
-//     0.5f,  0.5f,  0.5f,
-//    -0.5f, -0.5f, -0.5f,
-//     0.5f, -0.5f, -0.5f,
-//     0.5f, -0.5f,  0.5f,
-//     0.5f, -0.5f,  0.5f,
-//    -0.5f, -0.5f,  0.5f,
-//    -0.5f, -0.5f, -0.5f,
-//    -0.5f,  0.5f, -0.5f,
-//     0.5f,  0.5f, -0.5f,
-//    -0.5f,  0.5f,  0.5f,
-//     0.5f,  0.5f,  0.5f,
-//     0.5f,  0.5f,  0.5f,
-//    -0.5f,  0.5f, -0.5f
-//};
-//
-//static unsigned int compile_shader( unsigned int type, const std::string& source) {
-//    unsigned int id = glCreateShader(type);
-//    const char* src = source.c_str();
-//    int result;
-//
-//    glShaderSource(id, 1, &src, nullptr);
-//    glCompileShader(id);
-//    
-//    glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-//    if (result == GL_FALSE) {
-//        int length;
-//        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-//        char* message = (char*)alloca(length * sizeof(char));
-//        glGetShaderInfoLog(id, length, &length, message);
-//        std::cerr << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader!" << std::endl;
-//        std::cerr << message << std::endl;
-//        return 0;
-//    }
-//
-//    return id;
-//}
-//
-//static unsigned int create_shader(const std::string& vertex_shader, const std::string& fragment_shader) {
-//    unsigned int program = glCreateProgram();
-//    unsigned int vs = compile_shader(GL_VERTEX_SHADER, vertex_shader);
-//    unsigned int fs = compile_shader(GL_FRAGMENT_SHADER, fragment_shader);
-//
-//    glAttachShader(program, vs);
-//    glAttachShader(program, fs);
-//    glLinkProgram(program);
-//    glValidateProgram(program);
-//
-//    glDeleteShader(vs);
-//    glDeleteShader(fs);
-//
-//    return program;
-//}
-//
-//int main() {
-//    if (!glfwInit())
-//        return -1;
-//
-//    auto window = glfwCreateWindow(600, 600, "Hello World", NULL, NULL);
-//    if (!window) {
-//        glfwTerminate();
-//        return -1;
-//    }
-//    glfwMakeContextCurrent(window);
-//    if (glewInit() != GLEW_OK) {
-//        std::cout << "Didn't manage to initialize GLEW." << std::endl;;
-//        return -1;
-//    }
-//    std::cout << glGetString(GL_VERSION) << std::endl;
-//
-//    std::string fragment_shader, vertex_shader, tmp;
-//    std::ifstream f_shader("../OpenGLLabs/fragment_shader.shader");
-//    std::ifstream v_shader("../OpenGLLabs/vertex_shader.shader");
-//    
-//    while (std::getline(f_shader, tmp)) {
-//        fragment_shader += tmp + '\n';
-//        tmp.clear();
-//    }
-//    while (std::getline(v_shader, tmp)) {
-//        vertex_shader += tmp + '\n';
-//        tmp.clear();
-//    }
-//
-//    unsigned int texture;
-//    glGenTextures(1, &texture);
-//    glBindTexture(GL_TEXTURE_2D, texture);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//    int width, height, nrChannels;
-//    /*std::fstream f("../OpenGLLabs/frame.jpg");
-//    std::cout << f.is_open() << std::endl;*/
-//    unsigned char* image = stbi_load("../OpenGLLabs/frame.jpg", &width, &height, &nrChannels, 0);
-//    glBindTexture(GL_TEXTURE_2D, texture);
-//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-//    glGenerateMipmap(GL_TEXTURE_2D);
-//    stbi_image_free(image);
-//    glActiveTexture(GL_TEXTURE0);
-//    glBindTexture(GL_TEXTURE_2D, texture);
-//
-//    unsigned int shader = create_shader(vertex_shader, fragment_shader);
-//    Renderer r(std::move(verticies), 3, shader);
-//
-//    while (!glfwWindowShouldClose(window)) {
-//        glm::mat4 trans = glm::mat4(1.0f);
-//        trans = glm::rotate(trans, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 1.0f));
-//        unsigned int transformLoc = glGetUniformLocation(shader, "transform");
-//        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
-//        r.render();
-//        glfwSwapBuffers(window);
-//        glfwPollEvents();
-//    }
-//
-//    glfwTerminate();
-//    return 0;
-//}
-//

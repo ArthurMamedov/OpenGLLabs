@@ -1,4 +1,5 @@
 #include "Shader.hpp"
+using namespace Engine4AM;
 
 auto Shader::compile_shader(unsigned int type, const std::string& source) -> unsigned int {
 	unsigned int id = glCreateShader(type);
@@ -61,6 +62,10 @@ auto Shader::get_id() const -> unsigned int {
 
 auto Shader::select() const -> void {
 	glUseProgram(_id);
+}
+
+auto Engine4AM::Shader::disselect() const -> void {
+	glUseProgram(0);
 }
 
 Shader::operator unsigned int() const {

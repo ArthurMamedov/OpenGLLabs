@@ -1,5 +1,7 @@
 #include "Texture.hpp"
 
+using namespace Engine4AM;
+
 Texture::Texture() :_id(0) {
 	;
 }
